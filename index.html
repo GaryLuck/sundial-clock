@@ -1257,6 +1257,7 @@
 
         // Clock Drag Interaction
         let activeDrag = null;
+        let dragStartMinutes = 0;
         let lastPlayedTickMin = -1;
 
         function minAngularDistance(a1, a2) {
@@ -1295,6 +1296,8 @@
                     handleMove(clientX, clientY);
                 }
                 
+                dragStartMinutes = state.minutes;
+                
                 initAudio();
                 playSound('tick');
             }
@@ -1317,18 +1320,19 @@
                         if (newMinutes % 5 === 0) playSound('tick');
                     }
                 } else if (activeDrag === 'hour') {
-                    // Continuous hour drag preserves AM/PM
-                    const totalMinutes = Math.round((clockAngle / 30) * 60);
+                    // Dragging the hour hand only changes state.hours, preserving AM/PM.
+                    // state.minutes is untouched, so the minute hand does not move.
                     const oldH = state.hours;
                     const isPM = state.hours >= 12;
                     
-                    let h24 = Math.floor(totalMinutes / 60) % 12 + (isPM ? 12 : 0);
-                    let m = totalMinutes % 60;
+                    // Since minutes do not change, the hour hand's angle is offset by state.minutes * 0.5.
+                    // We can subtract this offset to find the corresponding hour.
+                    let hourAngleOnly = (clockAngle - state.minutes * 0.5 + 360) % 360;
+                    let h12 = Math.round(hourAngleOnly / 30) % 12;
+                    let h24 = h12 + (isPM ? 12 : 0);
                     
-                    state.hours = h24;
-                    state.minutes = m;
-                    
-                    if (h24 !== oldH) {
+                    if (oldH !== h24) {
+                        state.hours = h24;
                         playSound('tick');
                     }
                 }
@@ -1338,7 +1342,12 @@
             }
 
             function handleEnd() {
-                activeDrag = null;
+                if (activeDrag === 'minute') {
+                    activeDrag = null;
+                    updateUI();
+                } else {
+                    activeDrag = null;
+                }
             }
 
             // Mouse events
@@ -1537,7 +1546,7 @@
 
             // 5. Rotate Clock Hands visually
             const minAngle = m * 6;
-            const hourAngle = (h % 12) * 30 + m * 0.5;
+            const hourAngle = (h % 12) * 30 + (activeDrag === 'minute' ? dragStartMinutes : m) * 0.5;
             document.getElementById('minute-hand-group').setAttribute('transform', `rotate(${minAngle}, 150, 150)`);
             document.getElementById('hour-hand-group').setAttribute('transform', `rotate(${hourAngle}, 150, 150)`);
 
