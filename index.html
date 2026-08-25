@@ -1,0 +1,2016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Sundial Academy: Interactive Time & Shadows</title>
+    <style>
+        :root {
+            --sky-sunrise: linear-gradient(135deg, #ff7e5f, #feb47b, #765285);
+            --sky-day: linear-gradient(135deg, #a1c4fd, #c2e9fb);
+            --sky-sunset: linear-gradient(135deg, #f12711, #f5af19, #4a154b);
+            --sky-night: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+            
+            --stone-plate: #eae4d3;
+            --stone-rim: #bcaf96;
+            --brass-gnomon: linear-gradient(45deg, #d4af37, #aa7c11, #ffd700);
+            --shadow-color: rgba(14, 18, 30, 0.45);
+            --lunar-shadow-color: rgba(100, 149, 237, 0.3);
+            
+            --font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            --font-serif: 'Georgia', serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: #0c0f1d;
+            color: #f1f5f9;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            transition: background 1s ease;
+        }
+
+        header {
+            text-align: center;
+            padding: 24px 16px;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            background: linear-gradient(45deg, #fbbf24, #f59e0b, #d97706);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 6px;
+            letter-spacing: -0.5px;
+        }
+
+        p.subtitle {
+            color: #94a3b8;
+            font-size: 1rem;
+        }
+
+        /* Sky Terrace (Dynamic Background) */
+        .sky-terrace {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+            transition: opacity 1s ease;
+        }
+
+        .sky-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+        }
+
+        #layer-night { background: var(--sky-night); }
+        #layer-sunrise { background: var(--sky-sunrise); }
+        #layer-day { background: var(--sky-day); }
+        #layer-sunset { background: var(--sky-sunset); }
+
+        .sky-object {
+            position: absolute;
+            border-radius: 50%;
+            transition: left 0.5s ease, top 0.5s ease, opacity 1s ease;
+        }
+
+        .sun {
+            width: 80px;
+            height: 80px;
+            background: radial-gradient(circle, #fff 30%, #ffeb3b 60%, rgba(255,152,0,0) 100%);
+            box-shadow: 0 0 40px #ffeb3b;
+        }
+
+        .moon {
+            width: 60px;
+            height: 60px;
+            background: radial-gradient(circle, #fff 50%, #e0f2fe 80%, rgba(224,242,254,0) 100%);
+            box-shadow: 0 0 30px rgba(224,242,254,0.8);
+        }
+
+        /* Twinkling Starfield */
+        .starfield {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+
+        .star {
+            position: absolute;
+            background-color: white;
+            border-radius: 50%;
+            animation: twinkle 3s infinite ease-in-out;
+        }
+
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.2; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+
+        /* Clouds */
+        .cloud {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 100px;
+            filter: blur(8px);
+            pointer-events: none;
+            animation: float 40s linear infinite;
+        }
+        .cloud::before, .cloud::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+        }
+        .cloud::before {
+            width: 80px;
+            height: 80px;
+            top: -40px;
+            left: 30px;
+        }
+        .cloud::after {
+            width: 100px;
+            height: 100px;
+            top: -50px;
+            left: 80px;
+        }
+
+        @keyframes float {
+            0% { transform: translateX(-150px); }
+            100% { transform: translateX(110vw); }
+        }
+
+        /* Layout */
+        .app-container {
+            max-width: 1300px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 24px 16px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            position: relative;
+            z-index: 1;
+            flex-grow: 1;
+        }
+
+        @media (max-width: 968px) {
+            .app-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: rgba(30, 41, 59, 0.45);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #e2e8f0;
+            margin-bottom: 20px;
+            width: 100%;
+            text-align: left;
+            border-left: 4px solid #f59e0b;
+            padding-left: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Analog Clock styles */
+        .clock-container {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            margin: 10px 0;
+            user-select: none;
+            touch-action: none;
+        }
+
+        .clock-face {
+            width: 100%;
+            height: 100%;
+        }
+
+        .hand-target {
+            cursor: pointer;
+            pointer-events: all;
+        }
+
+        .digital-time {
+            font-size: 2.2rem;
+            font-weight: 800;
+            font-family: monospace;
+            color: #fbbf24;
+            margin: 15px 0 5px 0;
+            text-shadow: 0 0 10px rgba(251, 191, 36, 0.3);
+        }
+
+        .day-info {
+            font-size: 0.95rem;
+            color: #94a3b8;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        /* Sundial styles */
+        .sundial-wrapper {
+            position: relative;
+            width: 100%;
+            height: 320px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .sundial-svg {
+            width: 100%;
+            height: 100%;
+            max-width: 400px;
+            max-height: 400px;
+        }
+
+        /* Controls Panel */
+        .controls {
+            width: 100%;
+            margin-top: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .control-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #94a3b8;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .control-value {
+            color: #fbbf24;
+            font-weight: 700;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 5px;
+            background: #334155;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #fbbf24;
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(251, 191, 36, 0.6);
+            transition: transform 0.1s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        /* Button Groups */
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(30, 41, 59, 0.6);
+            color: #e2e8f0;
+            font-weight: 600;
+            font-size: 0.85rem;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: rgba(51, 65, 85, 0.8);
+            border-color: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .btn.active {
+            background: #fbbf24;
+            color: #0f172a;
+            border-color: #fbbf24;
+            box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Game Panel */
+        .game-panel {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.7));
+            border: 1px solid rgba(251, 191, 36, 0.2);
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 12px;
+        }
+
+        .game-title {
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .game-badge {
+            background: rgba(251, 191, 36, 0.15);
+            color: #fbbf24;
+            padding: 4px 10px;
+            border-radius: 99px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            border: 1px solid rgba(251, 191, 36, 0.3);
+            text-transform: uppercase;
+        }
+
+        .game-body {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            align-items: center;
+        }
+
+        @media (max-width: 768px) {
+            .game-body {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .level-description {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .level-name {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #fbbf24;
+        }
+
+        .level-objective {
+            font-size: 1rem;
+            color: #cbd5e1;
+            line-height: 1.5;
+        }
+
+        .level-hint {
+            font-size: 0.85rem;
+            color: #94a3b8;
+            font-style: italic;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .game-action {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .verify-btn {
+            width: 100%;
+            max-width: 200px;
+            padding: 14px 24px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+            color: #0f172a;
+            border: none;
+            box-shadow: 0 6px 20px rgba(245, 158, 11, 0.35);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .verify-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(245, 158, 11, 0.5);
+            background: linear-gradient(135deg, #fcd34d, #fbbf24);
+        }
+
+        .verify-btn:active {
+            transform: translateY(0);
+        }
+
+        .verify-btn:disabled {
+            background: #334155;
+            color: #64748b;
+            box-shadow: none;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            width: 100%;
+            background: #1e293b;
+            height: 8px;
+            border-radius: 99px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #f59e0b, #fbbf24);
+            width: 20%;
+            transition: width 0.4s ease;
+        }
+
+        /* Success & Educational Panels */
+        .educational-panel {
+            grid-column: 1 / -1;
+            background: rgba(30, 41, 59, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            margin-top: 24px;
+            width: 100%;
+        }
+
+        .edu-title {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #fbbf24;
+            margin-bottom: 20px;
+            font-family: var(--font-serif);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 10px;
+        }
+
+        .edu-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        @media (max-width: 768px) {
+            .edu-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .edu-section {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .edu-section h3 {
+            font-size: 1.15rem;
+            color: #e2e8f0;
+            font-family: var(--font-serif);
+        }
+
+        .edu-section p {
+            font-size: 0.95rem;
+            color: #94a3b8;
+            line-height: 1.6;
+        }
+
+        .edu-math {
+            background: rgba(15, 23, 42, 0.4);
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-family: monospace;
+            color: #38bdf8;
+            border-left: 3px solid #38bdf8;
+            font-size: 0.85rem;
+            margin-top: 6px;
+        }
+
+        /* Sound Control */
+        .sound-toggle {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #e2e8f0;
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            z-index: 100;
+        }
+
+        .sound-toggle:hover {
+            background: rgba(51, 65, 85, 0.8);
+            color: white;
+        }
+
+        /* Confetti/Victory overlays */
+        .victory-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            z-index: 200;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+
+        .victory-overlay.show {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .victory-card {
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            border: 2px solid #fbbf24;
+            padding: 40px;
+            border-radius: 24px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            transform: scale(0.9);
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+        }
+
+        .victory-overlay.show .victory-card {
+            transform: scale(1);
+        }
+
+        .victory-icon {
+            font-size: 5rem;
+            margin-bottom: 20px;
+            display: inline-block;
+            animation: bounce 1.5s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+
+        .victory-title {
+            font-size: 2rem;
+            font-family: var(--font-serif);
+            color: #fbbf24;
+            margin-bottom: 12px;
+        }
+
+        .victory-text {
+            color: #cbd5e1;
+            font-size: 1.05rem;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+
+        .confetti-particle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #fbbf24;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 201;
+            animation: confetti-fall 4s linear infinite;
+        }
+
+        @keyframes confetti-fall {
+            0% { transform: translateY(-50px) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+        }
+
+        /* Responsive UI polish */
+        .footer {
+            margin-top: auto;
+            text-align: center;
+            padding: 30px;
+            color: #64748b;
+            font-size: 0.85rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            background: rgba(15, 23, 42, 0.3);
+            z-index: 1;
+        }
+
+        /* Preset Badges */
+        .presets-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 6px;
+        }
+
+        .preset-badge {
+            background: rgba(51, 65, 85, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            color: #cbd5e1;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .preset-badge:hover {
+            background: rgba(251, 191, 36, 0.15);
+            color: #fbbf24;
+            border-color: rgba(251, 191, 36, 0.3);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Twinkling Starfield layer -->
+    <div class="starfield" id="starfield"></div>
+
+    <!-- Dynamic Sky Terrace Background -->
+    <div class="sky-terrace">
+        <div class="sky-layer" id="layer-night"></div>
+        <div class="sky-layer" id="layer-sunrise"></div>
+        <div class="sky-layer" id="layer-day"></div>
+        <div class="sky-layer" id="layer-sunset"></div>
+        
+        <!-- Sky Objects (Sun and Moon) -->
+        <div class="sky-object sun" id="sky-sun" style="opacity: 0;"></div>
+        <div class="sky-object moon" id="sky-moon" style="opacity: 0;"></div>
+
+        <!-- Clouds -->
+        <div class="cloud" style="top: 10%; width: 120px; height: 30px; animation-duration: 45s; opacity: 0.7;"></div>
+        <div class="cloud" style="top: 25%; width: 180px; height: 40px; animation-duration: 35s; animation-delay: -10s; opacity: 0.6;"></div>
+        <div class="cloud" style="top: 40%; width: 150px; height: 35px; animation-duration: 55s; animation-delay: -20s; opacity: 0.5;"></div>
+    </div>
+
+    <button class="sound-toggle" id="sound-btn" onclick="toggleSound()">
+        🔊 Sound On
+    </button>
+
+    <header>
+        <h1>THE SUNDIAL ACADEMY</h1>
+        <p class="subtitle">An Interactive Journey of Time & Celestial Shadows</p>
+    </header>
+
+    <div class="app-container">
+
+        <!-- Left Card: Analog Clock (The Timekeeper) -->
+        <div class="card" id="clock-card">
+            <div class="card-title">
+                <span>The Timekeeper</span>
+                <span class="game-badge">Drag Hands to Adjust</span>
+            </div>
+            
+            <div class="clock-container" id="clock-hit-area">
+                <svg class="clock-face" viewBox="0 0 300 300">
+                    <defs>
+                        <!-- Clock Gradients & Filters -->
+                        <radialGradient id="clock-grad" cx="50%" cy="50%" r="50%">
+                            <stop offset="70%" stop-color="#1e293b"/>
+                            <stop offset="100%" stop-color="#0f172a"/>
+                        </radialGradient>
+                        <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+                            <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.4"/>
+                        </filter>
+                    </defs>
+
+                    <!-- Outer rim -->
+                    <circle cx="150" cy="150" r="140" fill="none" stroke="#475569" stroke-width="8" filter="url(#shadow)"/>
+                    <circle cx="150" cy="150" r="136" fill="url(#clock-grad)"/>
+                    <circle cx="150" cy="150" r="126" fill="none" stroke="#fbbf24" stroke-width="1.5" opacity="0.3"/>
+
+                    <!-- Minute and Hour ticks -->
+                    <g id="clock-ticks" stroke="#64748b" stroke-linecap="round"></g>
+
+                    <!-- Hour Numbers -->
+                    <g id="clock-numbers" fill="#cbd5e1" font-family="var(--font-family)" font-size="16" font-weight="700" text-anchor="middle" dominant-baseline="middle"></g>
+
+                    <!-- Draggable hands -->
+                    <!-- Hour Hand -->
+                    <g id="hour-hand-group">
+                        <line x1="150" y1="150" x2="150" y2="90" stroke="#f1f5f9" stroke-width="7" stroke-linecap="round"/>
+                        <!-- Draggable overlay indicator -->
+                        <circle cx="150" cy="90" r="8" fill="#fbbf24" stroke="#0f172a" stroke-width="2" class="hand-target" id="hour-handle"/>
+                    </g>
+
+                    <!-- Minute Hand -->
+                    <g id="minute-hand-group">
+                        <line x1="150" y1="150" x2="150" y2="60" stroke="#fbbf24" stroke-width="4.5" stroke-linecap="round"/>
+                        <!-- Draggable overlay indicator -->
+                        <circle cx="150" cy="60" r="6" fill="#f1f5f9" stroke="#0f172a" stroke-width="2" class="hand-target" id="minute-handle"/>
+                    </g>
+
+                    <!-- Center Cap -->
+                    <circle cx="150" cy="150" r="9" fill="#0f172a" stroke="#fbbf24" stroke-width="3"/>
+                    <circle cx="150" cy="150" r="3" fill="#fbbf24"/>
+                </svg>
+            </div>
+
+            <div class="digital-time" id="digital-clock">10:30 AM</div>
+            <div class="day-info" id="day-phase">Morning Glow</div>
+
+            <div class="btn-group">
+                <button class="btn active" id="am-btn" onclick="setAM()">AM</button>
+                <button class="btn" id="pm-btn" onclick="setPM()">PM</button>
+            </div>
+        </div>
+
+        <!-- Right Card: Sundial (The Celestial Terrace) -->
+        <div class="card" id="sundial-card">
+            <div class="card-title">
+                <span>The Celestial Terrace</span>
+                <span class="game-badge" id="dial-mode-badge">Horizontal Sundial</span>
+            </div>
+
+            <div class="sundial-wrapper">
+                <svg class="sundial-svg" viewBox="0 0 400 400" id="sundial-svg">
+                    <defs>
+                        <!-- Brass gnomon gradient -->
+                        <linearGradient id="brass-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#fff4b0" />
+                            <stop offset="40%" stop-color="#d4af37" />
+                            <stop offset="80%" stop-color="#aa7c11" />
+                            <stop offset="100%" stop-color="#553c00" />
+                        </linearGradient>
+                        
+                        <!-- Stone rim gradient -->
+                        <linearGradient id="stone-rim-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stop-color="#d6ccb8" />
+                            <stop offset="100%" stop-color="#9d8f78" />
+                        </linearGradient>
+
+                        <!-- Stone plate gradient -->
+                        <radialGradient id="stone-plate-grad" cx="50%" cy="50%" r="50%">
+                            <stop offset="0%" stop-color="#f5efe1" />
+                            <stop offset="70%" stop-color="#e9dfcf" />
+                            <stop offset="100%" stop-color="#d8cca8" />
+                        </radialGradient>
+
+                        <!-- Dynamic Blur Filter for Shadows -->
+                        <filter id="shadow-blur">
+                            <feGaussianBlur id="blur-dev" stdDeviation="1.5" />
+                        </filter>
+
+                        <!-- Dial Clipping Path to keep shadow on stone face -->
+                        <clipPath id="dial-clip">
+                            <polygon id="dial-clip-polygon" points="" />
+                        </clipPath>
+                    </defs>
+
+                    <!-- Coordinate system center is (200, 200) -->
+                    <!-- Outer stone dial plate rim -->
+                    <polygon id="dial-plate-outer" points="" fill="url(#stone-rim-grad)" filter="url(#shadow)" />
+                    <!-- Inner stone dial plate face -->
+                    <polygon id="dial-plate-bg" points="" fill="url(#stone-plate-grad)" />
+
+                    <!-- Plate Decoration Rings -->
+                    <g id="dial-rings" opacity="0.15" stroke="#5a4a32" fill="none"></g>
+
+                    <!-- Dynamic Latitude Hour Lines -->
+                    <g id="hour-lines" stroke-linecap="round"></g>
+
+                    <!-- Compass markers -->
+                    <g id="compass-markers" fill="#5a4a32" font-family="var(--font-serif)" font-size="11" font-weight="bold" text-anchor="middle" dominant-baseline="middle"></g>
+
+                    <!-- Gnomon Shadow Layer (Clipped to dial face) -->
+                    <g clip-path="url(#dial-clip)">
+                        <polygon id="gnomon-shadow" points="" fill="var(--shadow-color)" filter="url(#shadow-blur)" />
+                    </g>
+
+                    <!-- 3D Gnomon (The triangular pointer) -->
+                    <!-- We draw both West and East faces for beautiful 3D shading -->
+                    <g id="gnomon-group">
+                        <polygon id="gnomon-west" points="" fill="url(#brass-grad)" stroke="#aa7c11" stroke-width="0.5" />
+                        <polygon id="gnomon-east" points="" fill="#aa7c11" stroke="#8c610b" stroke-width="0.5" />
+                        <line id="gnomon-spine" x1="0" y1="0" x2="0" y2="0" stroke="#fff" stroke-width="1" opacity="0.3" />
+                    </g>
+
+                    <!-- Aesthetic Center Pin screw -->
+                    <circle id="gnomon-anchor-pin" cx="200" cy="200" r="4" fill="#6a5214" stroke="#d4af37" stroke-width="1.5" />
+                </svg>
+            </div>
+
+            <!-- Sundial Settings & Presets -->
+            <div class="controls">
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Latitude Pointer Angle:</span>
+                        <span class="control-value"><span id="latitude-val">45</span>° N</span>
+                    </div>
+                    <input type="range" id="latitude-slider" min="10" max="80" value="45" oninput="changeLatitude(this.value)">
+                    <div class="presets-row">
+                        <span class="preset-badge" onclick="setPresetLat(30, 'Cairo')">Cairo (30°N)</span>
+                        <span class="preset-badge" onclick="setPresetLat(40, 'New York')">New York (40°N)</span>
+                        <span class="preset-badge" onclick="setPresetLat(51, 'London')">London (51°N)</span>
+                        <span class="preset-badge" onclick="setPresetLat(60, 'Oslo')">Oslo (60°N)</span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Season (Sun Declination):</span>
+                        <span class="control-value" id="season-val">Equinox</span>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn" id="season-winter" onclick="setSeason('winter')">❄️ Winter</button>
+                        <button class="btn active" id="season-equinox" onclick="setSeason('equinox')">🍂 Equinox</button>
+                        <button class="btn" id="season-summer" onclick="setSeason('summer')">☀️ Summer</button>
+                    </div>
+                </div>
+
+                <div class="control-group" id="moondial-ctrl" style="display: none;">
+                    <div class="control-label">
+                        <span>Night Sky Dialing:</span>
+                    </div>
+                    <button class="btn" id="moondial-btn" onclick="toggleMoondial()">🌙 Enable Moondial</button>
+                </div>
+                
+                <button class="btn" id="autoplay-btn" onclick="toggleAutoplay()" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); color: #10b981;">
+                    ▶️ Play Simulation
+                </button>
+            </div>
+        </div>
+
+        <!-- Middle Card: Interactive Game Campaign -->
+        <div class="game-panel">
+            <div class="game-header">
+                <div class="game-title">
+                    <span>🏆 Celestial Academy Challenge</span>
+                </div>
+                <div id="level-badge" class="game-badge">Level 1 of 5</div>
+            </div>
+            
+            <div class="game-body">
+                <div class="level-description">
+                    <div id="level-name" class="level-name">Morning Shadows</div>
+                    <div id="level-objective" class="level-objective">Set the Analog Clock to 9:00 AM. Watch how the shadow sweeps towards the West!</div>
+                    <div id="level-hint" class="level-hint">💡 Hint: The shadow of the gnomon should fall exactly on the Roman numeral IX line.</div>
+                    
+                    <div class="progress-container">
+                        <div class="progress-bar" id="game-progress"></div>
+                    </div>
+                </div>
+                
+                <div class="game-action">
+                    <button class="verify-btn" id="verify-btn" onclick="verifyLevel()">Verify Time</button>
+                    <div id="feedback-msg" style="font-size: 0.9rem; font-weight: 600; text-align: center; min-height: 20px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Educational Information Panels -->
+        <div class="educational-panel">
+            <h2 class="edu-title">The Science Behind Sundials</h2>
+            <div class="edu-grid">
+                <div class="edu-section">
+                    <h3>How a Horizontal Sundial Works</h3>
+                    <p>
+                        A horizontal sundial consists of a flat plate (the dial face) marked with hours, and a central triangular blade called the <strong>gnomon</strong>. 
+                        As the Sun travels across the sky from East to West, the gnomon casts a dark shadow onto the dial plate.
+                    </p>
+                    <p>
+                        Unlike the hands of an analog clock which sweep at a constant speed of 15° per hour, a sundial's hour lines are <strong>unequally spaced</strong>! 
+                        This non-linear layout is because we are projecting a circular solar orbit onto a flat horizontal plate.
+                    </p>
+                    <h3>The Latitude Alignment</h3>
+                    <p>
+                        To ensure that the shadow falls on the correct hour line throughout the entire year, the gnomon's sloped edge must be perfectly parallel to the Earth's axis of rotation. 
+                        Therefore, the angle of the gnomon slope must <strong>equal the exact latitude</strong> of its location! 
+                        Adjust the latitude slider to observe how the dial face automatically restructures itself for different cities.
+                    </p>
+                </div>
+                <div class="edu-section">
+                    <h3>Mathematical Projection Formula</h3>
+                    <p>
+                        The angle $R$ of each hour line (relative to North) is computed dynamically using spherical trigonometry:
+                    </p>
+                    <div class="edu-math">
+                        tan(R) = sin(Latitude) × tan(h)
+                    </div>
+                    <p>
+                        Where <em>h</em> is the solar hour angle (15° for each hour before or after Solar Noon). 
+                        This explains why hour lines bunch up closer to the 12:00 PM noon line at lower latitudes, and spread wider apart at high polar latitudes!
+                    </p>
+                    <h3>What is a Moondial?</h3>
+                    <p>
+                        A <strong>moondial</strong> is an instrument that tells time using the moonlight shadow cast by a gnomon. 
+                        Because the moon orbits the Earth, its position shifts by about 48 minutes later each night compared to the sun. 
+                        A standard sundial can only be used as a moondial during a <strong>Full Moon</strong> when the Moon is directly opposite the Sun in the night sky!
+                    </p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Victory Modal Popup -->
+    <div class="victory-overlay" id="victory-modal">
+        <div class="victory-card">
+            <span class="victory-icon">🎓</span>
+            <h2 class="victory-title">Academy Graduate!</h2>
+            <p class="victory-text" id="victory-card-text">
+                Amazing work! You successfully completed all challenges and mastered the science of solar and lunar dial alignment. 
+                You are now a certified master shadow-weaver of the Celestial Academy!
+            </p>
+            <button class="verify-btn" onclick="closeVictoryModal()">Enter Sandbox Mode</button>
+        </div>
+    </div>
+
+    <footer class="footer">
+        Created for the GaryLuck/sundial-clock Challenge © 2026. Enjoy Celestial Mechanics!
+    </footer>
+
+    <script>
+        // Web Audio Synthesizer
+        let audioEnabled = true;
+        const audioCtxClass = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = null;
+
+        function toggleSound() {
+            audioEnabled = !audioEnabled;
+            const btn = document.getElementById('sound-btn');
+            if (audioEnabled) {
+                btn.textContent = '🔊 Sound On';
+                btn.style.background = 'rgba(30, 41, 59, 0.6)';
+            } else {
+                btn.textContent = '🔇 Sound Muted';
+                btn.style.background = 'rgba(239, 68, 68, 0.15)';
+            }
+        }
+
+        function initAudio() {
+            if (!audioCtx && audioEnabled) {
+                try {
+                    audioCtx = new audioCtxClass();
+                } catch(e) {
+                    console.log('Web Audio not supported');
+                }
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playSound(type) {
+            if (!audioEnabled) return;
+            initAudio();
+            if (!audioCtx) return;
+            
+            const now = audioCtx.currentTime;
+            
+            if (type === 'tick') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                
+                osc.frequency.setValueAtTime(1200, now);
+                gain.gain.setValueAtTime(0.02, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+                
+                osc.start(now);
+                osc.stop(now + 0.03);
+            } else if (type === 'success') {
+                const notes = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5
+                notes.forEach((freq, index) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + index * 0.08);
+                    gain.gain.setValueAtTime(0, now + index * 0.08);
+                    gain.gain.linearRampToValueAtTime(0.08, now + index * 0.08 + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + index * 0.08 + 0.35);
+                    
+                    osc.start(now + index * 0.08);
+                    osc.stop(now + index * 0.08 + 0.35);
+                });
+            } else if (type === 'fail') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(140, now);
+                osc.frequency.linearRampToValueAtTime(85, now + 0.25);
+                
+                gain.gain.setValueAtTime(0.08, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+                
+                osc.start(now);
+                osc.stop(now + 0.25);
+            } else if (type === 'levelup') {
+                const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51]; // C5, E5, G5, C6, E6
+                notes.forEach((freq, index) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + index * 0.07);
+                    gain.gain.setValueAtTime(0, now + index * 0.07);
+                    gain.gain.linearRampToValueAtTime(0.12, now + index * 0.07 + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + index * 0.07 + 0.4);
+                    
+                    osc.start(now + index * 0.07);
+                    osc.stop(now + index * 0.07 + 0.4);
+                });
+            }
+        }
+
+        // Global State
+        const state = {
+            hours: 10,       // 0 - 23
+            minutes: 0,      // 0 - 59
+            latitude: 45,    // 10 - 80 degrees
+            season: 'equinox', // 'winter', 'equinox', 'summer'
+            isMoondial: false,
+            mode: 'game',    // 'game', 'sandbox'
+            level: 1,
+            score: 0,
+            autoplay: false
+        };
+
+        // Levels Database
+        const levels = {
+            1: {
+                name: "Morning Whispers",
+                objective: "Set the Analog Clock to 9:00 AM. Watch how the shadow sweeps Westward!",
+                hint: "💡 Hint: A 9:00 AM shadow will fall exactly on the Roman numeral IX line (to the West/Left).",
+                verify: (st) => st.hours === 9 && st.minutes === 0
+            },
+            2: {
+                name: "The Solar Peak",
+                objective: "At Solar Noon, the sun reaches its highest point and sits directly South. Set the clock to Solar Noon!",
+                hint: "💡 Hint: Set the clock to 12:00 PM. The shadow of the gnomon should point perfectly North (straight up, XII).",
+                verify: (st) => st.hours === 12 && st.minutes === 0
+            },
+            3: {
+                name: "Afternoon Slant",
+                objective: "Set the clock to 3:30 PM. See how the shadow lengthens as the day goes on!",
+                hint: "💡 Hint: On the clock, 3:30 PM has the hour hand halfway between 3 and 4. The shadow points North-East.",
+                verify: (st) => st.hours === 15 && st.minutes === 30
+            },
+            4: {
+                name: "The Shortest Shadow",
+                objective: "During Summer, the sun climbs much higher in the sky, casting very short shadows. Set the season to Summer Solstice and the clock to Solar Noon!",
+                hint: "💡 Hint: Click the '☀️ Summer' button, and set the clock to 12:00 PM.",
+                verify: (st) => st.hours === 12 && st.minutes === 0 && st.season === 'summer'
+            },
+            5: {
+                name: "The Midnight Moondial",
+                objective: "The night is full of wonders! Set the clock to midnight (12:00 AM) and enable Moondial Mode to reveal the celestial lunar shadow!",
+                hint: "💡 Hint: Drag the clock to 12:00 AM (midnight), then click '🌙 Enable Moondial' which appears at night.",
+                verify: (st) => st.hours === 0 && st.minutes === 0 && st.isMoondial === true
+            }
+        };
+
+        // 3D Isometric Projection Setup
+        // Camera tilt about X axis (55 deg) and rotation about Z axis (-15 deg)
+        const cosTx = Math.cos(55 * Math.PI / 180);
+        const sinTx = Math.sin(55 * Math.PI / 180);
+        const cosTz = Math.cos(-15 * Math.PI / 180);
+        const sinTz = Math.sin(-15 * Math.PI / 180);
+
+        function project(x, y, z) {
+            // Rotate about Z axis
+            const xr = x * cosTz - y * sinTz;
+            const yr = x * sinTz + y * cosTz;
+            const zr = z;
+            
+            // Rotate about X axis (isometric projection)
+            const xp = xr;
+            const yp = yr * cosTx - zr * sinTx;
+            
+            // Offset to SVG coordinates (center 200, 200)
+            return {
+                x: 200 + xp,
+                y: 200 + yp
+            };
+        }
+
+        // Initialize UI Elements
+        window.addEventListener('DOMContentLoaded', () => {
+            initClockElements();
+            initStars();
+            setupDragControls();
+            updateUI();
+            updateHourLines();
+            updateLevelDisplay();
+        });
+
+        // Initialize Stars
+        function initStars() {
+            const container = document.getElementById('starfield');
+            container.innerHTML = '';
+            for (let i = 0; i < 60; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                star.style.left = `${Math.random() * 100}%`;
+                star.style.top = `${Math.random() * 100}%`;
+                const size = Math.random() * 2 + 1;
+                star.style.width = `${size}px`;
+                star.style.height = `${size}px`;
+                star.style.animationDelay = `${Math.random() * 4}s`;
+                star.style.animationDuration = `${2 + Math.random() * 3}s`;
+                container.appendChild(star);
+            }
+        }
+
+        // Initialize SVG Clock Ticks and Numbers
+        function initClockElements() {
+            const ticksGroup = document.getElementById('clock-ticks');
+            ticksGroup.innerHTML = '';
+            for (let i = 0; i < 60; i++) {
+                const angle = i * 6;
+                const angleRad = angle * Math.PI / 180;
+                const isHour = i % 5 === 0;
+                
+                const r1 = isHour ? 116 : 122;
+                const r2 = 126;
+                
+                const x1 = 150 + r1 * Math.sin(angleRad);
+                const y1 = 150 - r1 * Math.cos(angleRad);
+                const x2 = 150 + r2 * Math.sin(angleRad);
+                const y2 = 150 - r2 * Math.cos(angleRad);
+                
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', x1.toString());
+                line.setAttribute('y1', y1.toString());
+                line.setAttribute('x2', x2.toString());
+                line.setAttribute('y2', y2.toString());
+                line.setAttribute('stroke', isHour ? '#fbbf24' : '#475569');
+                line.setAttribute('stroke-width', isHour ? '2.5' : '1');
+                ticksGroup.appendChild(line);
+            }
+
+            const numGroup = document.getElementById('clock-numbers');
+            numGroup.innerHTML = '';
+            for (let h = 1; h <= 12; h++) {
+                const angle = h * 30;
+                const angleRad = angle * Math.PI / 180;
+                const r = 98;
+                const x = 150 + r * Math.sin(angleRad);
+                const y = 150 - r * Math.cos(angleRad) + 1; // minor baseline tweak
+                
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', x.toString());
+                text.setAttribute('y', y.toString());
+                text.textContent = h.toString();
+                numGroup.appendChild(text);
+            }
+        }
+
+        // Clock Drag Interaction
+        let activeDrag = null;
+        let lastPlayedTickMin = -1;
+
+        function minAngularDistance(a1, a2) {
+            let diff = Math.abs(a1 - a2) % 360;
+            return diff > 180 ? 360 - diff : diff;
+        }
+
+        function setupDragControls() {
+            const clockArea = document.getElementById('clock-hit-area');
+            
+            function handleStart(clientX, clientY) {
+                const rect = clockArea.getBoundingClientRect();
+                const x = clientX - rect.left - 150;
+                const y = clientY - rect.top - 150;
+                
+                const r = Math.hypot(x, y);
+                if (r > 135) return; // ignore clicks on outer bevel
+                
+                // Calculate angle from 12 o'clock, clockwise
+                let angleDeg = Math.atan2(y, x) * 180 / Math.PI;
+                let clockAngle = (angleDeg + 90 + 360) % 360;
+                
+                const hourAngle = (state.hours % 12) * 30 + state.minutes * 0.5;
+                const minAngle = state.minutes * 6;
+                
+                const diffHour = minAngularDistance(clockAngle, hourAngle);
+                const diffMin = minAngularDistance(clockAngle, minAngle);
+                
+                if (diffHour < diffMin && diffHour < 25) {
+                    activeDrag = 'hour';
+                } else if (diffMin <= diffHour && diffMin < 25) {
+                    activeDrag = 'minute';
+                } else {
+                    // Snap closest hand
+                    activeDrag = diffMin < diffHour ? 'minute' : 'hour';
+                    handleMove(clientX, clientY);
+                }
+                
+                initAudio();
+                playSound('tick');
+            }
+
+            function handleMove(clientX, clientY) {
+                if (!activeDrag) return;
+                
+                const rect = clockArea.getBoundingClientRect();
+                const x = clientX - rect.left - 150;
+                const y = clientY - rect.top - 150;
+                
+                let angleDeg = Math.atan2(y, x) * 180 / Math.PI;
+                let clockAngle = (angleDeg + 90 + 360) % 360;
+                
+                if (activeDrag === 'minute') {
+                    const oldMinutes = state.minutes;
+                    const newMinutes = Math.round((clockAngle / 360) * 60) % 60;
+                    if (oldMinutes !== newMinutes) {
+                        state.minutes = newMinutes;
+                        if (newMinutes % 5 === 0) playSound('tick');
+                    }
+                } else if (activeDrag === 'hour') {
+                    // Continuous hour drag preserves AM/PM
+                    const totalMinutes = Math.round((clockAngle / 30) * 60);
+                    const oldH = state.hours;
+                    const isPM = state.hours >= 12;
+                    
+                    let h24 = Math.floor(totalMinutes / 60) % 12 + (isPM ? 12 : 0);
+                    let m = totalMinutes % 60;
+                    
+                    state.hours = h24;
+                    state.minutes = m;
+                    
+                    if (h24 !== oldH) {
+                        playSound('tick');
+                    }
+                }
+                
+                updateUI();
+                clearFeedback();
+            }
+
+            function handleEnd() {
+                activeDrag = null;
+            }
+
+            // Mouse events
+            clockArea.addEventListener('mousedown', (e) => {
+                handleStart(e.clientX, e.clientY);
+            });
+            window.addEventListener('mousemove', (e) => {
+                if (activeDrag) handleMove(e.clientX, e.clientY);
+            });
+            window.addEventListener('mouseup', handleEnd);
+
+            // Touch events
+            clockArea.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    handleStart(e.touches[0].clientX, e.touches[0].clientY);
+                    e.preventDefault();
+                }
+            }, { passive: false });
+            window.addEventListener('touchmove', (e) => {
+                if (activeDrag && e.touches.length === 1) {
+                    handleMove(e.touches[0].clientX, e.touches[0].clientY);
+                    e.preventDefault();
+                }
+            }, { passive: false });
+            window.addEventListener('touchend', handleEnd);
+        }
+
+        // Time setters
+        function setAM() {
+            if (state.hours >= 12) {
+                state.hours -= 12;
+                playSound('tick');
+                updateUI();
+                clearFeedback();
+            }
+        }
+
+        function setPM() {
+            if (state.hours < 12) {
+                state.hours += 12;
+                playSound('tick');
+                updateUI();
+                clearFeedback();
+            }
+        }
+
+        // Change Sundial Settings
+        function changeLatitude(val) {
+            state.latitude = parseInt(val);
+            document.getElementById('latitude-val').textContent = val;
+            updateHourLines();
+            updateUI();
+            clearFeedback();
+        }
+
+        function setPresetLat(lat, name) {
+            document.getElementById('latitude-slider').value = lat;
+            changeLatitude(lat);
+            playSound('tick');
+        }
+
+        function setSeason(season) {
+            state.season = season;
+            ['winter', 'equinox', 'summer'].forEach(s => {
+                const btn = document.getElementById(`season-${s}`);
+                if (s === season) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+            
+            const seasonLabels = { 'winter': 'Winter Solstice (Dec)', 'equinox': 'Equinox (Mar/Sep)', 'summer': 'Summer Solstice (Jun)' };
+            document.getElementById('season-val').textContent = seasonLabels[season];
+            
+            playSound('tick');
+            updateUI();
+            clearFeedback();
+        }
+
+        function toggleMoondial() {
+            state.isMoondial = !state.isMoondial;
+            const btn = document.getElementById('moondial-btn');
+            const badge = document.getElementById('dial-mode-badge');
+            
+            if (state.isMoondial) {
+                btn.textContent = '☀️ Enable Sundial';
+                btn.classList.add('active');
+                badge.textContent = 'Lunar Moondial';
+                badge.style.background = 'rgba(100, 149, 237, 0.15)';
+                badge.style.color = '#93c5fd';
+                badge.style.borderColor = 'rgba(100, 149, 237, 0.4)';
+            } else {
+                btn.textContent = '🌙 Enable Moondial';
+                btn.classList.remove('active');
+                badge.textContent = 'Horizontal Sundial';
+                badge.style.background = 'rgba(251, 191, 36, 0.15)';
+                badge.style.color = '#fbbf24';
+                badge.style.borderColor = 'rgba(251, 191, 36, 0.3)';
+            }
+            
+            playSound('tick');
+            updateUI();
+            clearFeedback();
+        }
+
+        // Update the UI state completely
+        function updateUI() {
+            const h = state.hours;
+            const m = state.minutes;
+            const t = h + m / 60;
+            
+            // 1. Update AM/PM active buttons
+            const amBtn = document.getElementById('am-btn');
+            const pmBtn = document.getElementById('pm-btn');
+            if (h >= 12) {
+                pmBtn.classList.add('active');
+                amBtn.classList.remove('active');
+            } else {
+                amBtn.classList.add('active');
+                pmBtn.classList.remove('active');
+            }
+
+            // 2. Update Digital Clock Display
+            const h12 = h % 12 === 0 ? 12 : h % 12;
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            const padM = m.toString().padStart(2, '0');
+            document.getElementById('digital-clock').textContent = `${h12}:${padM} ${ampm}`;
+
+            // 3. Update Sky Layer backgrounds
+            const skyOpacities = getSkyOpacities(t);
+            document.getElementById('layer-night').style.opacity = skyOpacities.night;
+            document.getElementById('layer-sunrise').style.opacity = skyOpacities.sunrise;
+            document.getElementById('layer-day').style.opacity = skyOpacities.day;
+            document.getElementById('layer-sunset').style.opacity = skyOpacities.sunset;
+
+            // Update Starfield visibility
+            document.getElementById('starfield').style.opacity = skyOpacities.night * 0.8;
+
+            // 4. Position Sun or Moon in Sky
+            const skyWidth = window.innerWidth;
+            const skyHeight = 260; // Approximate height of background view
+            
+            const sunEl = document.getElementById('sky-sun');
+            const moonEl = document.getElementById('sky-moon');
+            const moondialCtrl = document.getElementById('moondial-ctrl');
+
+            // Day Phase Description Text
+            let phaseText = "Morning Glow";
+            if (t >= 5 && t < 7) phaseText = "🌅 Sunrise Dawn";
+            else if (t >= 7 && t < 11) phaseText = "☀️ Morning Sunlight";
+            else if (t >= 11 && t < 13) phaseText = "☀️ Solar Zenith (Noon)";
+            else if (t >= 13 && t < 17) phaseText = "☀️ Afternoon Slant";
+            else if (t >= 17 && t < 19) phaseText = "🌇 Sunset Dusk";
+            else if (t >= 19 && t < 22) phaseText = "🌃 Evening Twilight";
+            else if (t >= 22 || t < 5) phaseText = "🌌 Night Stars";
+            document.getElementById('day-phase').textContent = phaseText;
+
+            // Day/Night logic for sun, moon and dial toggle
+            const isNight = t > 18.5 || t < 5.5;
+            if (isNight) {
+                // Show Moon, Hide Sun
+                sunEl.style.opacity = '0';
+                moonEl.style.opacity = '1';
+                moondialCtrl.style.display = 'block';
+                
+                // Position Moon: rises 6 PM (18:00), peaks 12 AM (0:00), sets 6 AM (6:00)
+                let t_moon = t >= 18 ? t - 18 : t + 6; // 0 to 12
+                let px = 50 + (t_moon / 12) * (skyWidth - 100);
+                let py = skyHeight - 40 - Math.sin((t_moon / 12) * Math.PI) * 100;
+                moonEl.style.left = `${px}px`;
+                moonEl.style.top = `${py}px`;
+            } else {
+                // Show Sun, Hide Moon
+                sunEl.style.opacity = '1';
+                moonEl.style.opacity = '0';
+                
+                // Automatically reset moondial mode at daytime
+                if (state.isMoondial) {
+                    state.isMoondial = false;
+                    const badge = document.getElementById('dial-mode-badge');
+                    badge.textContent = 'Horizontal Sundial';
+                    badge.style.background = 'rgba(251, 191, 36, 0.15)';
+                    badge.style.color = '#fbbf24';
+                    badge.style.borderColor = 'rgba(251, 191, 36, 0.3)';
+                    const btn = document.getElementById('moondial-btn');
+                    btn.classList.remove('active');
+                    btn.textContent = '🌙 Enable Moondial';
+                }
+                moondialCtrl.style.display = 'none';
+
+                // Position Sun: rises 6 AM, peaks 12 PM, sets 6 PM
+                let t_sun = t - 6; // 0 to 12
+                let sx = 50 + (t_sun / 12) * (skyWidth - 100);
+                let sy = skyHeight - 40 - Math.sin((t_sun / 12) * Math.PI) * 100;
+                sunEl.style.left = `${sx}px`;
+                sunEl.style.top = `${sy}px`;
+            }
+
+            // 5. Rotate Clock Hands visually
+            const minAngle = m * 6;
+            const hourAngle = (h % 12) * 30 + m * 0.5;
+            document.getElementById('minute-hand-group').setAttribute('transform', `rotate(${minAngle}, 150, 150)`);
+            document.getElementById('hour-hand-group').setAttribute('transform', `rotate(${hourAngle}, 150, 150)`);
+
+            // 6. Calculate Sundial Shadows
+            calculateSundialShadow();
+        }
+
+        // Sky transition interpolation factor
+        function getSkyOpacities(t) {
+            let night = 0, sunrise = 0, day = 0, sunset = 0;
+            
+            if (t >= 0 && t < 4) {
+                night = 1;
+            } else if (t >= 4 && t < 6.5) {
+                const f = (t - 4) / 2.5;
+                night = 1 - f;
+                sunrise = f;
+            } else if (t >= 6.5 && t < 8.5) {
+                const f = (t - 6.5) / 2;
+                sunrise = 1 - f;
+                day = f;
+            } else if (t >= 8.5 && t < 15.5) {
+                day = 1;
+            } else if (t >= 15.5 && t < 17.5) {
+                const f = (t - 15.5) / 2;
+                day = 1 - f;
+                sunset = f;
+            } else if (t >= 17.5 && t < 20) {
+                const f = (t - 17.5) / 2.5;
+                sunset = 1 - f;
+                night = f;
+            } else {
+                night = 1;
+            }
+            
+            return { night, sunrise, day, sunset };
+        }
+
+        // Calculate and Draw Sundial 3D elements
+        function calculateSundialShadow() {
+            const h = state.hours;
+            const m = state.minutes;
+            let t = h + m / 60;
+            
+            // Check if we are drawing sun shadow or moon shadow
+            let isCasting = false;
+            let activeAzimuth = 0;
+            let activeAltitude = 0;
+            let isMoonLight = false;
+
+            const isNight = t > 18 || t < 6;
+            
+            if (!isNight) {
+                // Daytime: Sun is casting
+                isCasting = true;
+                const sunPos = getSunPosition(t, state.latitude, state.season);
+                activeAzimuth = sunPos.azimuth;
+                activeAltitude = sunPos.altitude;
+            } else if (state.isMoondial) {
+                // Nighttime and moondial enabled: Moon is casting!
+                isCasting = true;
+                isMoonLight = true;
+                
+                // Full Moon is exactly opposite to the Sun in the sky
+                let t_opposite = (t + 12) % 24;
+                // Opposing seasons for the moon (low winter sun = high full moon!)
+                let mSeason = state.season === 'winter' ? 'summer' : (state.season === 'summer' ? 'winter' : 'equinox');
+                const moonPos = getSunPosition(t_opposite, state.latitude, mSeason);
+                
+                activeAzimuth = moonPos.azimuth;
+                activeAltitude = moonPos.altitude;
+            }
+
+            // Gnomon height and configuration
+            const L_base = 80;
+            // The physical gnomon slope is equal to the latitude, but bounded visually so it doesn't break perspective bounds
+            const gnomonAngleVisual = Math.max(18, Math.min(72, state.latitude)) * Math.PI / 180;
+            const h_gnomon = L_base * Math.tan(gnomonAngleVisual);
+            
+            // 1. Draw Gnomon in 3D projection
+            // Gnomon is a triangle in plane X = 0, base on Y from -40 to 40. Height h_gnomon at Y = 40.
+            const p_south = project(0, -40, 0);
+            const p_north = project(0, 40, 0);
+            const p_apex = project(0, 40, h_gnomon);
+            const p_north_mid = project(0, 40, 0); // vertical drop
+
+            // Side face: East side (positive X coordinate in flat but thin, so we draw simple triangles)
+            // To give beautiful 3D effect, we offset the gnomon face by 1px
+            const p_south_e = project(1.5, -40, 0);
+            const p_north_e = project(1.5, 40, 0);
+            const p_apex_e = project(1.5, 40, h_gnomon);
+
+            const p_south_w = project(-1.5, -40, 0);
+            const p_north_w = project(-1.5, 40, 0);
+            const p_apex_w = project(-1.5, 40, h_gnomon);
+
+            // Shading faces based on sun direction
+            const gWest = document.getElementById('gnomon-west');
+            const gEast = document.getElementById('gnomon-east');
+            const gSpine = document.getElementById('gnomon-spine');
+
+            gWest.setAttribute('points', `${p_south_w.x},${p_south_w.y} ${p_apex_w.x},${p_apex_w.y} ${p_north_w.x},${p_north_w.y}`);
+            gEast.setAttribute('points', `${p_south_e.x},${p_south_e.y} ${p_apex_e.x},${p_apex_e.y} ${p_north_e.x},${p_north_e.y}`);
+            gSpine.setAttribute('x1', p_south.x.toString());
+            gSpine.setAttribute('y1', p_south.y.toString());
+            gSpine.setAttribute('x2', p_apex.x.toString());
+            gSpine.setAttribute('y2', p_apex.y.toString());
+
+            const sShadow = document.getElementById('gnomon-shadow');
+
+            if (isCasting && activeAltitude > 0) {
+                // Calculate physical shadow of apex (0, 40, h_gnomon)
+                // x_shadow = - h * sin(A) / tan(alpha)
+                // y_shadow = 40 - h * cos(A) / tan(alpha)
+                let tanAlt = Math.tan(activeAltitude);
+                if (tanAlt < 0.02) tanAlt = 0.02; // prevent divide by zero
+                
+                let L_shadow = h_gnomon / tanAlt;
+                // Cap shadow length visually so SVG doesn't break
+                const maxShadowL = 260;
+                let isClippedLength = false;
+                if (L_shadow > maxShadowL) {
+                    L_shadow = maxShadowL;
+                    isClippedLength = true;
+                }
+
+                const x_shadow = -L_shadow * Math.sin(activeAzimuth);
+                const y_shadow = 40 - L_shadow * Math.cos(activeAzimuth);
+
+                // Project shadow apex to 2D
+                const p_shadow_apex = project(x_shadow, y_shadow, 0);
+
+                // Draw shadow polygon:
+                // From South base, to shadow apex, to North base
+                // Use a shadow offset for thickness
+                sShadow.setAttribute('points', `${p_south_w.x},${p_south_w.y} ${p_shadow_apex.x},${p_shadow_apex.y} ${p_north_e.x},${p_north_e.y}`);
+                
+                // Dynamic blur and opacity based on altitude (angle of sun)
+                const blurDev = document.getElementById('blur-dev');
+                const altDeg = activeAltitude * 180 / Math.PI;
+                
+                // Lower altitude = longer, softer, fuzzier shadow
+                const blurRadius = Math.max(1, Math.min(10, 6 - (altDeg / 15)));
+                blurDev.setAttribute('stdDeviation', blurRadius.toFixed(1));
+
+                // Fade shadow at horizons (under 5 degrees altitude)
+                let fade = Math.max(0, Math.min(1, altDeg / 5));
+                if (isMoonLight) {
+                    sShadow.setAttribute('fill', 'var(--lunar-shadow-color)');
+                    sShadow.setAttribute('opacity', (fade * 0.75).toString());
+                } else {
+                    sShadow.setAttribute('fill', 'var(--shadow-color)');
+                    sShadow.setAttribute('opacity', (fade * 0.9).toString());
+                }
+                sShadow.style.display = 'block';
+
+                // Brighten/darken gnomon faces realistically based on azimuth
+                const azDeg = activeAzimuth * 180 / Math.PI;
+                if (azDeg > 180) {
+                    // Afternoon: Sun is in West. East face in shadow (dark), West face lit (bright)
+                    gWest.setAttribute('fill', 'url(#brass-grad)');
+                    gEast.setAttribute('fill', '#6b5214');
+                } else {
+                    // Morning: Sun is in East. East face lit (bright), West face in shadow (dark)
+                    gWest.setAttribute('fill', '#6b5214');
+                    gEast.setAttribute('fill', 'url(#brass-grad)');
+                }
+            } else {
+                // No light source, no shadow
+                sShadow.style.display = 'none';
+                gWest.setAttribute('fill', '#475569'); // slate grey shadow
+                gEast.setAttribute('fill', '#334155');
+            }
+        }
+
+        // Calculate Sun Azimuth and Altitude using astronomy formulas
+        function getSunPosition(t, lat, season) {
+            const hAngleDeg = (t - 12) * 15;
+            const hRad = hAngleDeg * Math.PI / 180;
+            const latRad = lat * Math.PI / 180;
+            
+            // Declination of Sun based on season
+            const seasonsDec = { 'winter': -23.44, 'equinox': 0, 'summer': 23.44 };
+            const decRad = seasonsDec[season] * Math.PI / 180;
+
+            // Sin(altitude) = sin(lat)sin(dec) + cos(lat)cos(dec)cos(h)
+            const sinAlpha = Math.sin(latRad) * Math.sin(decRad) + Math.cos(latRad) * Math.cos(decRad) * Math.cos(hRad);
+            const altitude = Math.asin(Math.max(-1, Math.min(1, sinAlpha)));
+
+            // Azimuth calculation
+            const cosAlpha = Math.cos(altitude);
+            let azimuth = 0;
+            
+            if (cosAlpha > 0.0001) {
+                let cosA = (Math.sin(decRad) - Math.sin(altitude) * Math.sin(latRad)) / (cosAlpha * Math.cos(latRad));
+                cosA = Math.max(-1, Math.min(1, cosA)); // clamp
+                
+                let sinA = -Math.sin(hRad) * Math.cos(decRad) / cosAlpha;
+                azimuth = Math.acos(cosA);
+                if (sinA < 0) {
+                    azimuth = 2 * Math.PI - azimuth;
+                }
+            } else {
+                azimuth = hRad + Math.PI;
+            }
+
+            return { azimuth, altitude };
+        }
+
+        // Update Dial Hour lines in 3D projection
+        function updateHourLines() {
+            const container = document.getElementById('hour-lines');
+            container.innerHTML = '';
+            
+            const latRad = state.latitude * Math.PI / 180;
+            
+            // Plate size configurations
+            const R_circle = 110;
+            const origin_y = -40; // Gnomon south end (apex origin)
+
+            // Hour lines from 6 AM (6) to 6 PM (18)
+            for (let hVal = 6; hVal <= 18; hVal++) {
+                const hAngleDeg = (hVal - 12) * 15;
+                const hAngleRad = hAngleDeg * Math.PI / 180;
+                
+                // Horizontal Dial formula: tan(R) = sin(lat) * tan(hAngle)
+                const tanR = Math.sin(latRad) * Math.tan(hAngleRad);
+                const R = Math.atan(tanR); // Angle on the horizontal plate
+
+                // Solve quadratic to find distance L where line intersects the circle face of radius 110
+                // Center is at (0, 0), line starts at (0, -40) going in angle R
+                // x = L * sin(R), y = -40 + L * cos(R)
+                const cosR = Math.cos(R);
+                const discriminant = 1600 * cosR * cosR + 10500; // 12100 (110^2) - 1600
+                const L = 40 * cosR + Math.sqrt(discriminant);
+
+                const x_flat = L * Math.sin(R);
+                const y_flat = -40 + L * cosR;
+
+                // Project points into 3D
+                const p_start = project(0, -40, 0); // Radiate from South end of Gnomon
+                const p_end = project(x_flat, y_flat, 0);
+
+                // Draw line
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', p_start.x.toString());
+                line.setAttribute('y1', p_start.y.toString());
+                line.setAttribute('x2', p_end.x.toString());
+                line.setAttribute('y2', p_end.y.toString());
+                line.setAttribute('stroke', hVal === 12 ? '#92400e' : '#8a7355'); // XII is more prominent
+                line.setAttribute('stroke-width', hVal === 12 ? '2' : '1.2');
+                if (hVal !== 12) {
+                    line.setAttribute('stroke-dasharray', '1,2');
+                }
+                container.appendChild(line);
+
+                // Add Roman Numeral Labels
+                const romanNumerals = {
+                    6: 'VI', 7: 'VII', 8: 'VIII', 9: 'IX', 10: 'X', 11: 'XI',
+                    12: 'XII', 13: 'I', 14: 'II', 15: 'III', 16: 'IV', 17: 'V', 18: 'VI'
+                };
+
+                // Labels are placed slightly outside the dial face circle (e.g. radius 124)
+                const discriminantLabel = 1600 * cosR * cosR + 13776; // 124^2 (15376) - 1600
+                const L_label = 40 * cosR + Math.sqrt(discriminantLabel);
+                const lx_flat = L_label * Math.sin(R);
+                const ly_flat = -40 + L_label * cosR;
+                
+                const p_label = project(lx_flat, ly_flat, 0);
+
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', p_label.x.toString());
+                text.setAttribute('y', p_label.y.toString());
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('dominant-baseline', 'middle');
+                text.setAttribute('font-family', 'var(--font-serif)');
+                text.setAttribute('font-size', '10px');
+                text.setAttribute('font-weight', 'bold');
+                text.setAttribute('fill', '#5a4a32');
+                text.textContent = romanNumerals[hVal];
+                container.appendChild(text);
+            }
+
+            // Update projected background Dial plates
+            updateClipPath();
+            drawCompassMarkers();
+        }
+
+        // Project the elliptical boundary of the plates and dynamic clip path
+        function updateClipPath() {
+            const clipPolygon = document.getElementById('dial-clip-polygon');
+            const bgPolygon = document.getElementById('dial-plate-bg');
+            const outerPolygon = document.getElementById('dial-plate-outer');
+            
+            let pointsBg = '';
+            let pointsOuter = '';
+            
+            for (let i = 0; i < 64; i++) {
+                const angle = (i / 64) * 2 * Math.PI;
+                
+                // Inner face plate (radius 110)
+                const x = 110 * Math.cos(angle);
+                const y = 110 * Math.sin(angle);
+                const p = project(x, y, 0);
+                pointsBg += `${p.x.toFixed(1)},${p.y.toFixed(1)} `;
+
+                // Outer bevel rim plate (radius 116)
+                const xo = 116 * Math.cos(angle);
+                const yo = 116 * Math.sin(angle);
+                const po = project(xo, yo, 0);
+                pointsOuter += `${po.x.toFixed(1)},${po.y.toFixed(1)} `;
+            }
+
+            clipPolygon.setAttribute('points', pointsBg.trim());
+            bgPolygon.setAttribute('points', pointsBg.trim());
+            outerPolygon.setAttribute('points', pointsOuter.trim());
+
+            // Draw decorative inner rings on stone plate
+            const ringsGroup = document.getElementById('dial-rings');
+            ringsGroup.innerHTML = '';
+            [50, 80, 106].forEach(rCircle => {
+                let ringPoints = '';
+                for (let i = 0; i <= 64; i++) {
+                    const angle = (i / 64) * 2 * Math.PI;
+                    const p = project(rCircle * Math.cos(angle), rCircle * Math.sin(angle), 0);
+                    ringPoints += `${p.x.toFixed(1)},${p.y.toFixed(1)} `;
+                }
+                const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                poly.setAttribute('points', ringPoints.trim());
+                ringsGroup.appendChild(poly);
+            });
+        }
+
+        // Draw Compass directions (North, South, East, West) in 3D projection
+        function drawCompassMarkers() {
+            const grp = document.getElementById('compass-markers');
+            grp.innerHTML = '';
+
+            const compass = [
+                { x: 0, y: 122, text: 'N' },  // North is straight up (+Y)
+                { x: 0, y: -122, text: 'S' }, // South is straight down (-Y)
+                { x: 122, y: 0, text: 'E' },  // East is right (+X)
+                { x: -122, y: 0, text: 'W' }  // West is left (-X)
+            ];
+
+            compass.forEach(item => {
+                const p = project(item.x, item.y, 0);
+                const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                t.setAttribute('x', p.x.toString());
+                t.setAttribute('y', p.y.toString());
+                t.setAttribute('fill', '#8c765c');
+                t.textContent = item.text;
+                grp.appendChild(t);
+            });
+        }
+
+        // Game Campaign Engine
+        function updateLevelDisplay() {
+            if (state.mode !== 'game') {
+                document.getElementById('level-badge').textContent = "Sandbox Mode";
+                document.getElementById('level-name').textContent = "Creative Sandbox";
+                document.getElementById('level-objective').textContent = "Play with the time, adjust the latitude of different cities, toggle seasons, and simulate full daily sun cycles!";
+                document.getElementById('level-hint').textContent = "💡 Tip: Click 'Play Simulation' to watch the dial shadow sweep in real time!";
+                document.getElementById('verify-btn').style.display = 'none';
+                document.getElementById('game-progress').style.width = '100%';
+                return;
+            }
+
+            const lvl = levels[state.level];
+            document.getElementById('level-badge').textContent = `Challenge ${state.level} of 5`;
+            document.getElementById('level-name').textContent = lvl.name;
+            document.getElementById('level-objective').textContent = lvl.objective;
+            document.getElementById('level-hint').textContent = lvl.hint;
+            document.getElementById('verify-btn').style.display = 'block';
+            document.getElementById('game-progress').style.width = `${(state.level - 1) * 20}%`;
+        }
+
+        function verifyLevel() {
+            if (state.mode !== 'game') return;
+            
+            const lvl = levels[state.level];
+            const isCorrect = lvl.verify(state);
+            const feedback = document.getElementById('feedback-msg');
+
+            if (isCorrect) {
+                feedback.textContent = "🎉 Excellent! That is absolutely correct!";
+                feedback.style.color = '#10b981';
+                
+                if (state.level < 5) {
+                    playSound('success');
+                    state.level++;
+                    setTimeout(() => {
+                        updateLevelDisplay();
+                        clearFeedback();
+                    }, 2000);
+                } else {
+                    playSound('levelup');
+                    showVictoryModal();
+                }
+            } else {
+                playSound('fail');
+                feedback.textContent = "❌ That's not quite right. Adjust the clock or settings and try again!";
+                feedback.style.color = '#ef4444';
+            }
+        }
+
+        function clearFeedback() {
+            document.getElementById('feedback-msg').textContent = "";
+        }
+
+        // Victory Certificate modal
+        function showVictoryModal() {
+            const modal = document.getElementById('victory-modal');
+            modal.classList.add('show');
+            createConfetti();
+        }
+
+        function closeVictoryModal() {
+            const modal = document.getElementById('victory-modal');
+            modal.classList.remove('show');
+            
+            // Switch to Sandbox
+            state.mode = 'sandbox';
+            updateLevelDisplay();
+        }
+
+        function createConfetti() {
+            for (let i = 0; i < 70; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'confetti-particle';
+                particle.style.left = `${Math.random() * 100}vw`;
+                particle.style.backgroundColor = ['#fbbf24', '#f59e0b', '#38bdf8', '#34d399', '#f43f5e'][Math.floor(Math.random() * 5)];
+                particle.style.animationDelay = `${Math.random() * 3}s`;
+                particle.style.animationDuration = `${3 + Math.random() * 3}s`;
+                particle.style.width = `${Math.random() * 8 + 6}px`;
+                particle.style.height = `${Math.random() * 8 + 6}px`;
+                document.body.appendChild(particle);
+                
+                // Cleanup confetti
+                setTimeout(() => { particle.remove(); }, 6000);
+            }
+        }
+
+        // Time Lapse simulation autoplay
+        let autoplayInterval = null;
+        function toggleAutoplay() {
+            const btn = document.getElementById('autoplay-btn');
+            state.autoplay = !state.autoplay;
+
+            if (state.autoplay) {
+                btn.textContent = '⏸️ Pause Simulation';
+                btn.style.background = 'rgba(239, 68, 68, 0.15)';
+                btn.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+                btn.style.color = '#ef4444';
+                
+                autoplayInterval = setInterval(() => {
+                    // Advance time by 4 minutes every tick
+                    state.minutes += 4;
+                    if (state.minutes >= 60) {
+                        state.minutes = 0;
+                        state.hours = (state.hours + 1) % 24;
+                    }
+                    updateUI();
+                }, 50);
+            } else {
+                btn.textContent = '▶️ Play Simulation';
+                btn.style.background = 'rgba(16, 185, 129, 0.15)';
+                btn.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+                btn.style.color = '#10b981';
+                clearInterval(autoplayInterval);
+            }
+            playSound('tick');
+        }
+    </script>
+</body>
+</html>
